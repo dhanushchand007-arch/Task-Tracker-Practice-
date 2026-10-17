@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Tracker Dashboard 🚀</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #0f172a; color: #f8fafc; padding: 2rem; display: flex; justify-content: center; }
+        .container { max-width: 900px; width: 100%; }
+        h1 { text-align: center; margin-bottom: 2rem; font-size: 2.5rem; color: #38bdf8; }
+        
+        /* Form Card */
+        .card { background: #1e293b; border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem; border: 1px solid #334155; }
+        .form-group { display: flex; gap: 1rem; flex-wrap: wrap; }
+        input[type="text"], select { flex: 1; min-width: 200px; padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid #475569; background: #0f172a; color: #fff; font-size: 1rem; }
+        button { padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: all 0.2s; }
+        .btn-primary { background: #0284c7; color: white; }
+        .btn-primary:hover { background: #0369a1; }
+        .btn-danger { background: #ef4444; color: white; padding: 0.4rem 0.8rem; font-size: 0.85rem; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-edit { background: #f59e0b; color: white; padding: 0.4rem 0.8rem; font-size: 0.85rem; margin-right: 0.5rem; }
+        .btn-edit:hover { background: #d97706; }
+
+        /* Task Cards */
+        .task-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+        .task-card { background: #1e293b; border-left: 5px solid #64748b; border-radius: 8px; padding: 1.25rem; display: flex; flex-direction: column; justify-content: space-between; border-top: 1px solid #334155; border-right: 1px solid #334155; border-bottom: 1px solid #334155; }
+        .task-card.todo { border-left-color: #f59e0b; }
+        .task-card.in-progress { border-left-color: #3b82f6; }
+        .task-card.done { border-left-color: #10b981; }
+
+        .task-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+        .task-id { font-size: 0.8rem; color: #94a3b8; font-weight: bold; }
+        .badge { padding: 0.25rem 0.6rem; border-radius: 20px; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; }
+        .badge.todo { background: #78350f; color: #fef3c7; }
+        .badge.in-progress { background: #1e3a8a; color: #bfdbfe; }
+        .badge.done { background: #064e3b; color: #a7f3d0; }
+
+        .task-body { font-size: 1.1rem; margin-bottom: 1rem; color: #e2e8f0; word-break: break-word; }
+        .task-footer { display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: #64748b; }
+        .actions { display: flex; margin-top: 1rem; justify-content: flex-end; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Task Tracker API Dashboard ⚡</h1>
+
+    <!-- Task Input / Edit Form -->
+    <div class="card">
+        <h3 id="form-title" style="margin-bottom: 1rem; color: #94a3b8;">Create New Task ✨</h3>
+        <form id="task-form" class="form-group">
+            <input type="hidden" id="edit-task-id">
+            <input type="text" id="description" placeholder="What needs to be done?" required>
+            <select id="status">
+                <option value="todo">To Do 📝</option>
+                <option value="in-progress">In Progress ⏳</option>
+                <option value="done">Done ✅</option>
+            </select>
+            <button type="submit" id="submit-btn" class="btn-primary">Add Task ➕</button>
+        </form>
+    </div>
+
+    <!-- Task Display List -->
+    <div id="task-grid" class="task-grid">
+        <!-- Dynamic JS Cards Will Render Here -->
+    </div>
+</div>
+
+<script>
+    const API_URL = "http://127.0.0.1:8000";
+
+    // 1. Fetch and Display All Tasks
+    async function loadTasks() {
+        try {
+            const res = await fetch(`${API_URL}/tasks/data`);
+            const data = await res.json(); // Backend returns dict { "1": {...}, "2": {...} }
+            
+            const grid = document.getElementById("task-grid");
+            grid.innerHTML = "";
+
+            const tasks = Object.values(data); // Convert dict values into JS Array
+
+            if (tasks.length === 0) {
+                grid.innerHTML = `<p style="color: #64748b; text-align: center; grid-column: 1/-1;">No tasks found! Create one above. 🎯</p>`;
+                return;
+            }
+
+            tasks.forEach(task => {
+                const createdDate = new Date(task.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                
+                // HTML Template Construction
+                const cardHTML = `
+                    <div class="task-card ${task.status}">
+                        <div>
+                            <div class="task-header">
+                                <span class="task-id">#TASK-${task.id}</span>
+                                <span class="badge ${task.status}">${task.status}</span>
+                            </div>
+                            <div class="task-body">${escapeHTML(task.description)}</div>
+                        </div>
+                        <div>
+                            <div class="task-footer">
+                                <span>Created: ${createdDate}</span>
+                            </div>
+                            <div class="actions">
+                                <button class="btn-edit" onclick="setupEdit(${task.id}, '${escapeHTML(task.description)}', '${task.status}')">Edit ✏️</button>
+                                <button class="btn-danger" onclick="deleteTask(${task.id})">Delete 🗑️</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                grid.innerHTML += cardHTML;
+            });
+        } catch (err) {
+            console.error("Failed to load tasks:", err);
+        }
+    }
+
+    // 2. Form Submit (Handles both CREATE and UPDATE)
+    document.getElementById("task-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        
+        const taskId = document.getElementById("edit-task-id").value;
+        const description = document.getElementById("description").value;
+        const status = document.getElementById("status").value;
+
+        const payload = { description, status };
+
+        if (taskId) {
+            // PUT Update Call
+            await fetch(`${API_URL}/tasks/${taskId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            resetForm();
+        } else {
+            // POST Create Call
+            await fetch(`${API_URL}/tasks`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            document.getElementById("description").value = "";
+        }
+
+        loadTasks();
+    });
+
+    // 3. Delete Task
+    async function deleteTask(id) {
+        if (!confirm(`Delete Task #${id}?`)) return;
+        
+        // Matches current /tasks/delete?a=ID endpoint
+        await fetch(`${API_URL}/tasks/delete?a=${id}`, {
+            method: "DELETE"
+        });
+        loadTasks();
+    }
+
+    // 4. Pre-fill Form for Editing (SOLVES YOUR SWAGGER DOUBT!)
+    function setupEdit(id, description, status) {
+        document.getElementById("form-title").innerText = `Edit Task #${id} ✏️`;
+        document.getElementById("edit-task-id").value = id;
+        document.getElementById("description").value = description;
+        document.getElementById("status").value = status;
+        
+        const submitBtn = document.getElementById("submit-btn");
+        submitBtn.innerText = "Update Task 💾";
+        submitBtn.style.background = "#f59e0b";
+    }
+
+    // Reset Form back to Create mode
+    function resetForm() {
+        document.getElementById("form-title").innerText = "Create New Task ✨";
+        document.getElementById("edit-task-id").value = "";
+        document.getElementById("description").value = "";
+        document.getElementById("status").value = "todo";
+        
+        const submitBtn = document.getElementById("submit-btn");
+        submitBtn.innerText = "Add Task ➕";
+        submitBtn.style.background = "#0284c7";
+    }
+
+    // Helper to prevent XSS attacks
+    function escapeHTML(str) {
+        return str.replace(/[&<>'"]/g, 
+            tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+        );
+    }
+
+    // Initial Load on Page Open
+    loadTasks();
+</script>
+</body>
+</html>
